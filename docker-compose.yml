@@ -1,0 +1,165 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AI Runtime & Evaluation Platform — Docker Compose
+# Local development: all services run on a shared internal network.
+# ─────────────────────────────────────────────────────────────────────────────
+
+networks:
+  ai_runtime_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+services:
+
+  # ─── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ai_runtime}
+      POSTGRES_USER: ${POSTGRES_USER:-ai_runtime_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdevpassword}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_runtime_user} -d ${POSTGRES_DB:-ai_runtime}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai_runtime_net
+
+  # ─── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai_runtime_net
+
+  # ─── Backend API ────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ai_runtime_user}:${POSTGRES_PASSWORD:-localdevpassword}@postgres:5432/${POSTGRES_DB:-ai_runtime}
+      REDIS_URL: redis://redis:6379/0
+      APP_ENV: development
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:5173"]'
+      OTEL_ENABLED: "true"
+      OTEL_EXPORT_TO_COLLECTOR: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - ai_runtime_net
+
+  # ─── Frontend ───────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment: {}
+    ports:
+      - "3002:3000"
+    depends_on:
+      - backend
+    networks:
+      - ai_runtime_net
+
+  # ─── OpenTelemetry Collector ────────────────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./deployment/otel/collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - jaeger
+    networks:
+      - ai_runtime_net
+
+  # ─── Jaeger trace UI ────────────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.63.0
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+    networks:
+      - ai_runtime_net
+
+  # ─── Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    volumes:
+      - ./deployment/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    networks:
+      - ai_runtime_net
+
+  # ─── Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-localdevpassword}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_HTTP_PORT: 3001
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deployment/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deployment/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3001:3001"
+    depends_on:
+      - prometheus
+    networks:
+      - ai_runtime_net

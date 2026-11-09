@@ -1,0 +1,155 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-runtime-backend"
+version = "0.1.0"
+description = "AI Runtime & Evaluation Platform — Backend"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+dependencies = [
+    # Web framework
+    "fastapi==0.115.5",
+    "uvicorn[standard]==0.32.1",
+    "python-multipart==0.0.18",
+
+    # Data validation
+    "pydantic==2.10.3",
+    "pydantic-settings==2.6.1",
+
+    # Database
+    "sqlalchemy==2.0.36",
+    "greenlet>=3.1.1",
+    "aiosqlite>=0.20.0",
+    "alembic==1.14.0",
+    "asyncpg==0.30.0",
+    "psycopg2-binary==2.9.10",
+
+    # Redis
+    "redis==5.2.1",
+    "hiredis==3.1.0",
+
+    # HTTP client
+    "httpx==0.28.1",
+
+    # Observability
+    "opentelemetry-api==1.29.0",
+    "opentelemetry-sdk==1.29.0",
+    "opentelemetry-instrumentation-fastapi==0.50b0",
+    "opentelemetry-instrumentation-sqlalchemy==0.50b0",
+    "opentelemetry-exporter-otlp-proto-grpc==1.29.0",
+    "prometheus-client==0.21.1",
+
+    # Utilities
+    "python-dotenv==1.0.1",
+    "structlog==24.4.0",
+    "anyio==4.7.0",
+    "tenacity==9.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest==8.3.4",
+    "pytest-asyncio==0.24.0",
+    "pytest-cov==6.0.0",
+    "httpx==0.28.1",
+    "factory-boy==3.3.1",
+    "faker==33.1.0",
+
+    # Linting / formatting / type-checking
+    "ruff==0.8.4",
+    "mypy==1.13.0",
+    "types-redis==4.6.0.20241004",
+
+    # Dev utilities
+    "ipython==8.30.0",
+]
+
+openai = [
+    "openai==1.57.4",
+]
+
+gemini = [
+    "google-generativeai==0.8.3",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+# ─── Ruff ─────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "S",   # flake8-bandit (security)
+    "ANN", # flake8-annotations
+]
+ignore = [
+    "ANN101",  # missing type annotation for self
+    "ANN102",  # missing type annotation for cls
+    "S101",    # use of assert (allowed in tests)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "ANN", "S106"]
+"alembic/**" = ["ANN"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+# ─── mypy ─────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# ─── pytest ───────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "-q",
+]
+markers = [
+    "unit: pure unit tests with no I/O",
+    "integration: tests that require a database or external service",
+    "slow: tests that take more than 1 second",
+]
+
+# ─── coverage ─────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*", "alembic/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+]

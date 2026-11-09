@@ -1,0 +1,152 @@
+{
+  "schema_version": "2",
+  "name": "Built-in Benchmark v2",
+  "description": "Deterministic benchmark dataset for the AI Runtime Evaluation Engine. Covers successful execution, expected tool errors, timeouts, edge cases, and multi-step chaining. All assertions are deterministic and require no external API keys.",
+  "cases": [
+    {
+      "name": "calculator_basic_add",
+      "tags": ["calculator", "success", "arithmetic"],
+      "input": {"expression": "2 + 3"},
+      "expected_output": {"result": 5.0},
+      "assertion_type": "exact",
+      "expect_error": false
+    },
+    {
+      "name": "calculator_complex_expression",
+      "tags": ["calculator", "success", "arithmetic"],
+      "input": {"expression": "10 * (3 + 2) - 8 / 2"},
+      "expected_output": {"result": 46.0},
+      "assertion_type": "exact",
+      "expect_error": false
+    },
+    {
+      "name": "calculator_division_by_zero",
+      "tags": ["calculator", "expect_error", "edge_case"],
+      "input": {"expression": "1 / 0"},
+      "expected_output": {"error_contains": "division by zero"},
+      "assertion_type": "expect_error",
+      "expect_error": true
+    },
+    {
+      "name": "calculator_empty_expression",
+      "tags": ["calculator", "expect_error", "edge_case"],
+      "input": {"expression": ""},
+      "expected_output": {"error_contains": "empty"},
+      "assertion_type": "expect_error",
+      "expect_error": true
+    },
+    {
+      "name": "calculator_schema_validation",
+      "tags": ["calculator", "success", "schema"],
+      "input": {"expression": "sqrt(16)"},
+      "expected_output": {
+        "schema": {
+          "type": "object",
+          "required": ["result"],
+          "properties": {
+            "result": {"type": "number", "minimum": 3.99, "maximum": 4.01}
+          }
+        }
+      },
+      "assertion_type": "schema",
+      "expect_error": false
+    },
+    {
+      "name": "text_processor_uppercase",
+      "tags": ["text_processor", "success"],
+      "input": {"operation": "uppercase", "text": "hello world"},
+      "expected_output": {"result": "HELLO WORLD"},
+      "assertion_type": "exact",
+      "expect_error": false
+    },
+    {
+      "name": "text_processor_word_count",
+      "tags": ["text_processor", "success"],
+      "input": {"operation": "word_count", "text": "the quick brown fox"},
+      "expected_output": {"result": 4},
+      "assertion_type": "exact",
+      "expect_error": false
+    },
+    {
+      "name": "text_processor_reverse",
+      "tags": ["text_processor", "success", "contains"],
+      "input": {"operation": "reverse", "text": "hello"},
+      "expected_output": {"result": "olleh"},
+      "assertion_type": "contains",
+      "expect_error": false
+    },
+    {
+      "name": "knowledge_base_search",
+      "tags": ["knowledge_base", "success"],
+      "input": {"operation": "search", "query": "python"},
+      "expected_output": {
+        "schema": {
+          "type": "object",
+          "required": ["results", "count"],
+          "properties": {
+            "count": {"type": "integer", "minimum": 1},
+            "results": {"type": "array"}
+          }
+        }
+      },
+      "assertion_type": "schema",
+      "expect_error": false
+    },
+    {
+      "name": "knowledge_base_list_topics",
+      "tags": ["knowledge_base", "success"],
+      "input": {"operation": "list_topics"},
+      "expected_output": {
+        "schema": {
+          "type": "object",
+          "required": ["topics"],
+          "properties": {
+            "topics": {"type": "array"}
+          }
+        }
+      },
+      "assertion_type": "schema",
+      "expect_error": false
+    },
+    {
+      "name": "knowledge_base_unknown_operation",
+      "tags": ["knowledge_base", "expect_error", "edge_case"],
+      "input": {"operation": "nonexistent_op"},
+      "expected_output": {},
+      "assertion_type": "expect_error",
+      "expect_error": true
+    },
+    {
+      "name": "mock_tool_echo_mode",
+      "tags": ["mock_tool", "success"],
+      "input": {"mode": "echo", "payload": "ping"},
+      "expected_output": {"mode": "echo", "payload": "ping"},
+      "assertion_type": "contains",
+      "expect_error": false
+    },
+    {
+      "name": "mock_tool_success_mode",
+      "tags": ["mock_tool", "success"],
+      "input": {"mode": "success"},
+      "expected_output": {"mode": "success"},
+      "assertion_type": "contains",
+      "expect_error": false
+    },
+    {
+      "name": "mock_tool_error_mode",
+      "tags": ["mock_tool", "expect_error"],
+      "input": {"mode": "error"},
+      "expected_output": {},
+      "assertion_type": "expect_error",
+      "expect_error": true
+    },
+    {
+      "name": "mock_tool_tool_called_assertion",
+      "tags": ["mock_tool", "tool_called"],
+      "input": {"mode": "success"},
+      "expected_output": {},
+      "assertion_type": "tool_called",
+      "expect_error": false
+    }
+  ]
+}
